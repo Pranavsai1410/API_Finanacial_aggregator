@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" /><title>Analytics Financial Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .card-shadow { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+        .sidebar-gradient { background: linear-gradient(180deg, #1e3a8a 0%, #1e40af 100%); }
+        .card-hover:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); transition: all 0.2s ease-in-out; }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div id="root"></div>
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+        const API_URL = 'http://localhost:3001/api';
+
+        function App() {
+            const [token, setToken] = useState(localStorage.getItem('token'));
+            const [role, setRole] = useState(localStorage.getItem('role'));
+            const handleLogin = (t, r) => { localStorage.setItem('token', t); localStorage.setItem('role', r); setToken(t); setRole(r); };
+            const handleLogout = () => { localStorage.clear(); setToken(null); setRole(null); };
+            return (<div className="min-h-screen">{token ? <DashboardLayout role={role} onLogout={handleLogout} /> : <LoginPage onLogin={handleLogin} />}</div>);
+        }
+        
+        function LoginPage({ onLogin }) {
+            const [email, setEmail] = useState('user1@bank.com');
+            const [password, setPassword] = useState('password123');
+            const [error, setError] = useState('');
+            const handleSubmit = async (e) => { e.preventDefault(); try { const res = await fetch(`${API_URL}/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }), }); const data = await res.json(); if (!res.ok) throw new Error(data.message); onLogin(data.token, data.role); } catch (err) { setError(err.message); } };
+            return ( <div className="min-h-screen bg-gray-200 flex items-center justify-center p-4"><div className="w-full max-w-sm p-8 space-y-6 bg-white rounded-lg shadow-xl"> <div className="text-center"><i className="fas fa-landmark text-4xl text-blue-600"></i><h2 className="mt-4 text-2xl font-bold">Welcome Back</h2></div> {error && <p className="text-red-500 text-center">{error}</p>} <form onSubmit={handleSubmit} className="space-y-6"><div><label>Email</label><input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full p-2 border rounded mt-1" required/></div><div><label>Password</label><input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-2 border rounded mt-1" required/></div><button type="submit" className="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded">Login</button></form><div className="mt-4 text-center text-sm text-gray-600"><p>user1@bank.com / password123</p><p>admin@bank.com / admin123</p></div></div></div>);
+        }
+
+        const DataCard = ({ title, value, icon, gradient }) => (
+            <div className={`p-6 rounded-lg text-white card-shadow card-hover ${gradient}`}>
+                <div className="flex justify-between items-center"><p className="text-lg font-semibold">{title}</p><i className={`fas ${icon} text-2xl opacity-70`}></i></div>
+                <p className="text-3xl font-bold mt-2">{value}</p>
+            </div>
+        );
+
+        const ChartContainer = ({ title, children }) => (
+            <div className="bg-white p-6 rounded-lg card-shadow">
+                <h2 className="text-xl font-bold mb-4 text-gray-800">{title}</h2>
+                {children}
+            </div>
+        );
+        
+        const MonthlyTrendChart = ({ data, label }) => { const chartRef = useRef(null); useEffect(() => { if (!chartRef.current || !data) return; const sortedMonths = Object.keys(data).sort(); const chartInstance = new Chart(chartRef.current, { type: 'line', data: { labels: sortedMonths, datasets: [{ label: label, data: sortedMonths.map(m => data[m]), borderColor: '#4f46e5', backgroundColor: 'rgba(79, 70, 229, 0.1)', fill: true, tension: 0.4 }] }, options: { responsive: true, scales: { y: { beginAtZero: true } } } }); return () => chartInstance.destroy(); }, [data, label]); return <canvas ref={chartRef}></canvas>; };
+        const CategorySpendingChart = ({ data }) => { const chartRef = useRef(null); useEffect(() => { if (!chartRef.current || !data) return; const chartInstance = new Chart(chartRef.current, { type: 'doughnut', data: { labels: Object.keys(data), datasets: [{ data: Object.values(data), backgroundColor: ['#3b82f6', '#10b981', '#ef4444', '#f97316', '#8b5cf6'] }] }, options: { responsive: true, plugins: { legend: { position: 'bottom' } } } }); return () => chartInstance.destroy(); }, [data]); return <canvas ref={chartRef}></canvas>; };
+        
+        // --- NEW DASHBOARD LAYOUT ---
+        function DashboardLayout({ role, onLogout }) {
+            return (
+                <div className="flex h-screen bg-gray-100">
+                    {/* Sidebar */}
+                    <div className="w-64 sidebar-gradient text-white flex flex-col">
+                        <div className="p-6 text-2xl font-bold flex items-center"><i className="fas fa-landmark mr-3"></i><span>FinDash</span></div>
+                        <nav className="flex-1 px-4 py-2 space-y-2">
+                            <a href="#" className="flex items-center px-4 py-2 text-gray-100 bg-blue-800 rounded-md"><i className="fas fa-home mr-3"></i>Dashboard</a>
+                        </nav>
+                        <div className="p-4 border-t border-blue-800">
+                             <button onClick={onLogout} className="w-full flex items-center px-4 py-2 text-gray-100 hover:bg-blue-800 rounded-md"><i className="fas fa-sign-out-alt mr-3"></i>Logout</button>
+                        </div>
+                    </div>
+                    {/* Main Content */}
+                    <main className="flex-1 p-8 overflow-y-auto">
+                         <h1 className="text-3xl font-bold text-gray-900 mb-8">{role === 'admin' ? 'Admin Dashboard' : 'My Analytics Dashboard'}</h1>
+                         {role === 'admin' ? <AdminDashboard /> : <UserDashboard />}
+                    </main>
+                </div>
+            );
+        }
+        
+        // --- USER DASHBOARD ---
+        function UserDashboard() {
+            const [analytics, setAnalytics] = useState(null);
+            if (!analytics) {
+                const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
+                fetch(`${API_URL}/analytics/summary`, { headers }).then(res => res.json()).then(data => setAnalytics(data));
+                return <div className="text-center">Loading Analytics...</div>;
+            }
+            return (
+                <div className="space-y-8">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <DataCard title="Total Spending" value={`$${analytics.totalSpending.toLocaleString()}`} icon="fa-arrow-circle-up" gradient="bg-gradient-to-br from-red-500 to-orange-500" />
+                        <DataCard title="Total Income" value={`$${analytics.totalIncome.toLocaleString()}`} icon="fa-arrow-circle-down" gradient="bg-gradient-to-br from-green-500 to-emerald-500" />
+                        <DataCard title="Net Flow" value={`${analytics.totalIncome > analytics.totalSpending ? '+' : '-'}$${Math.abs(analytics.totalIncome - analytics.totalSpending).toLocaleString()}`} icon="fa-balance-scale" gradient="bg-gradient-to-br from-blue-500 to-indigo-500" />
+                        <DataCard title="Transactions" value={analytics.transactionCount} icon="fa-exchange-alt" gradient="bg-gradient-to-br from-purple-500 to-violet-500" />
+                    </div>
+                    <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
+                        <div className="lg:col-span-3"><ChartContainer title="Monthly Spending Trend"><MonthlyTrendChart data={analytics.spendingByMonth} label="My Spending"/></ChartContainer></div>
+                        <div className="lg:col-span-2"><ChartContainer title="Spending by Category"><CategorySpendingChart data={analytics.spendingByCategory} /></ChartContainer></div>
+                    </div>
+                </div>
+            );
+        }
+
+        // --- ADMIN DASHBOARD ---
+        function AdminDashboard() {
+            const [allUsers, setAllUsers] = useState([]);
+            const [selectedUserId, setSelectedUserId] = useState('');
+            const [analytics, setAnalytics] = useState(null);
+
+            useEffect(() => {
+                const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
+                fetch(`${API_URL}/admin/users`, { headers }).then(res => res.json()).then(data => setAllUsers(data));
+            }, []);
+            
+            useEffect(() => {
+                const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
+                const url = `${API_URL}/analytics/summary${selectedUserId ? `?userId=${selectedUserId}` : ''}`;
+                fetch(url, { headers }).then(res => res.json()).then(data => setAnalytics(data));
+            }, [selectedUserId]);
+
+            if (!analytics) return <div>Loading Admin Data...</div>;
+
+            return (
+                <div>
+                    <div className="mb-6 bg-white p-4 rounded-lg shadow">
+                        <label htmlFor="user-select" className="block text-sm font-medium text-gray-700">View Analytics For:</label>
+                        <select id="user-select" className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 rounded-md" value={selectedUserId} onChange={(e) => setSelectedUserId(e.target.value)} >
+                            <option value="">All Users (Aggregated)</option>
+                            {allUsers.map(user => (<option key={user.id} value={user.id}>{user.email}</option>))}
+                        </select>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                        <DataCard title="Total Platform Spending" value={`$${analytics.totalSpending.toLocaleString()}`} icon="fa-dollar-sign" gradient="bg-gradient-to-br from-red-500 to-orange-500" />
+                        <DataCard title="Total Platform Income" value={`$${analytics.totalIncome.toLocaleString()}`} icon="fa-money-bill-wave" gradient="bg-gradient-to-br from-green-500 to-emerald-500" />
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
+                        <div className="lg:col-span-3"><ChartContainer title={`Monthly Spending (${selectedUserId ? 'User' : 'All Users'})`}><MonthlyTrendChart data={analytics.spendingByMonth} label="Spending"/></ChartContainer></div>
+                        <div className="lg:col-span-2"><ChartContainer title={`Spending by Category (${selectedUserId ? 'User' : 'All Users'})`}><CategorySpendingChart data={analytics.spendingByCategory} /></ChartContainer></div>
+                    </div>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
